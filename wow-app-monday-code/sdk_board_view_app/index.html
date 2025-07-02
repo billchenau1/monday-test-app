@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/monday-sdk-js/dist/main.js"></script>
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      padding: 20px;
+      background-color: #f5f6f8;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #0073ea;
+      margin-bottom: 20px;
+    }
+    
+    .section {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #e6e9ef;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #323338;
+    }
+    
+    button {
+      background-color: #0073ea;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      margin-right: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+    
+    button:hover {
+      background-color: #0060b9;
+    }
+    
+    .result {
+      background-color: #f5f6f8;
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 10px;
+      min-height: 20px;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>monday.com SDK Test App</h1>
+    
+    <div class="section">
+      <div class="section-title">monday.get</div>
+      
+      <button id="getContext">Get Context</button>
+      <button id="getItemIds">Get Item IDs</button>
+      <button id="getSettings">Get Settings</button>
+      <button id="getTheme">Get Theme</button>
+      <button id="getSessionToken">Get Session Token</button>
+      <div class="result" id="getContextResult"></div>
+      <div class="result" id="getItemIdsResult"></div>
+      <div class="result" id="getSettingsResult"></div>
+      <div class="result" id="getThemeResult"></div>
+      <div class="result" id="getSessionTokenResult"></div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">monday.api</div>
+      
+      <button id="getUsers">Get Users</button>
+      <button id="customQueryToggle">Custom GraphQL Query</button>
+      <div class="result" id="getUsersResult"></div>
+      
+      <div id="customQueryContainer" style="display: none; margin-top: 15px; padding: 15px; background-color: #f0f4ff; border-radius: 6px;">
+        <div style="margin-bottom: 10px;">Enter your GraphQL query:</div>
+        <textarea id="graphqlQuery" style="width: 100%; height: 150px; padding: 10px; border-radius: 4px; border: 1px solid #c5c7d0; font-family: monospace; margin-bottom: 10px;" placeholder="query { 
+  boards(limit: 5) { 
+    id 
+    name 
+  } 
+}"></textarea>
+        <button id="executeQuery">Execute Query</button>
+        <div class="result" id="customQueryResult" style="margin-top: 10px;"></div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">monday.execute</div>
+      
+      <button id="showNotice">Show Notice</button>
+      <button id="triggerFileUpload">Trigger File Upload</button>
+      <button id="confirmAction">Confirm Action</button>
+      <div class="result" id="fileUploadResult"></div>
+      <div class="result" id="confirmResult"></div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">monday.listen</div>
+      
+      <button id="listenContext">Listen to Context</button>
+      <button id="listenItemIds">Listen to Item IDs</button>
+      <button id="listenEvents">Listen to Events</button>
+      <div class="result" id="listenContextResult"></div>
+      <div class="result" id="listenItemIdsResult"></div>
+      <div class="result" id="listenEventsResult"></div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">monday.storage</div>
+      
+      <button id="storageInstance">Get Instance Storage</button>
+      <button id="storageInstanceSet">Set Instance Storage</button>
+      <button id="storageGlobal">Get Global Storage</button>
+      <button id="storageGlobalSet">Set Global Storage</button>
+      <button id="storageGlobalSearch">Search Global Storage</button>
+      <button id="storageGlobalDelete">Delete Global Storage</button>
+      <button id="storageUser">Get User Storage</button>
+      <button id="storageUserSet">Set User Storage</button>
+      <div class="result" id="storageInstanceResult"></div>
+      <div class="result" id="storageGlobalResult"></div>
+      <div class="result" id="storageUserResult"></div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">monday.set</div>
+      
+      <button id="setToken">Set API Token</button>
+      <button id="setApiVersion">Set API Version</button>
+      <div class="result" id="setTokenResult"></div>
+      <div class="result" id="setApiVersionResult"></div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Testing Customer Request</div>
+      
+      <button id="customerRequestToggle">Toggle Customer Request Test</button>
+      
+      <div id="customerRequestContainer" style="display: none; margin-top: 15px; padding: 15px; background-color: #fff0f0; border-radius: 6px; border: 1px solid #ffcccc;">
+        <div style="margin-bottom: 10px;">Enter your customer request GraphQL query:</div>
+        <textarea id="customerRequestQuery" style="width: 100%; height: 150px; padding: 10px; border-radius: 4px; border: 1px solid #c5c7d0; font-family: monospace; margin-bottom: 10px;" placeholder="query { 
+  items(ids: [123456789]) { 
+    id 
+    name 
+  } 
+}"></textarea>
+        <button id="executeCustomerRequest">Execute Customer Request</button>
+        <div class="result" id="customerRequestResult" style="margin-top: 10px;"></div>
+        <div style="font-size: 12px; margin-top: 10px; color: #666;">
+          <pre>Implementation details:
+const response = await monday.api(query);
+console.log("Response:", response);
+console.log("Error :", response?.errors);</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize monday SDK safely
+    let monday;
+    try {
+      monday = window.mondaySdk();
+      monday.setApiVersion("2025-04");
+    } catch (error) {
+      console.error("Error initializing monday SDK:", error);
+    }
+
+    // Safe function to handle API errors
+    function safeApiCall(promise, resultElementId) {
+      if (!promise || typeof promise.then !== 'function') {
+        document.getElementById(resultElementId).innerHTML = "SDK method not available";
+        return;
+      }
+      
+      return promise
+        .then(res => {
+          if (!res) {
+            document.getElementById(resultElementId).innerHTML = "No response received";
+            return null;
+          }
+          return res;
+        })
+        .catch(err => {
+          document.getElementById(resultElementId).innerHTML = "Error: " + (err.message || JSON.stringify(err));
+          console.error("SDK error:", err);
+          return null;
+        });
+    }
+
+    // Wait for DOM to be fully loaded
+    document.addEventListener("DOMContentLoaded", function() {
+      if (!monday) {
+        document.body.innerHTML = "<div style='color: red; padding: 20px;'>monday SDK failed to initialize. Please refresh the page.</div>";
+        return;
+      }
+
+      // monday.get methods
+      document.getElementById("getContext")?.addEventListener("click", () => {
+        document.getElementById("getContextResult").innerHTML = "Loading...";
+        safeApiCall(monday.get("context"), "getContextResult")
+          .then(res => {
+            if (res) {
+              document.getElementById("getContextResult").innerHTML = JSON.stringify(res.data || {}, null, 2);
+            }
+          });
+      });
+      
+      document.getElementById("getItemIds")?.addEventListener("click", () => {
+        document.getElementById("getItemIdsResult").innerHTML = "Loading...";
+        safeApiCall(monday.get("itemIds"), "getItemIdsResult")
+          .then(res => {
+            if (res) {
+              document.getElementById("getItemIdsResult").innerHTML = JSON.stringify(res.data || [], null, 2);
+            }
+          });
+      });
+      
+      document.getElementById("getSettings")?.addEventListener("click", () => {
+        document.getElementById("getSettingsResult").innerHTML = "Loading...";
+        safeApiCall(monday.get("settings"), "getSettingsResult")
+          .then(res => {
+            if (res) {
+              document.getElementById("getSettingsResult").innerHTML = JSON.stringify(res.data || {}, null, 2);
+            }
+          });
+      });
+      
+      document.getElementById("getTheme")?.addEventListener("click", () => {
+        document.getElementById("getThemeResult").innerHTML = "Loading...";
+        safeApiCall(monday.get("context"), "getThemeResult")
+          .then(res => {
+            if (res && res.data) {
+              document.getElementById("getThemeResult").innerHTML = JSON.stringify(res.data.theme || {}, null, 2);
+            }
+          });
+      });
+      
+      document.getElementById("getSessionToken")?.addEventListener("click", () => {
+        document.getElementById("getSessionTokenResult").innerHTML = "Loading...";
+        safeApiCall(monday.get("sessionToken"), "getSessionTokenResult")
+          .then(res => {
+            if (res) {
+              document.getElementById("getSessionTokenResult").innerHTML = JSON.stringify(res.data || "", null, 2);
+            }
+          });
+      });
+      
+      // monday.api methods
+      document.getElementById("getUsers")?.addEventListener("click", () => {
+        document.getElementById("getUsersResult").innerHTML = "Loading...";
+        safeApiCall(monday.api('query { users { name id } }'), "getUsersResult")
+          .then(res => {
+            if (res) {
+              document.getElementById("getUsersResult").innerHTML = JSON.stringify(res.data || {}, null, 2);
+            }
+          });
+      });
+      
+      // Custom GraphQL query functionality
+      document.getElementById("customQueryToggle")?.addEventListener("click", () => {
+        const container = document.getElementById("customQueryContainer");
+        if (container) {
+          const isCurrentlyVisible = container.style.display !== "none";
+          container.style.display = isCurrentlyVisible ? "none" : "block";
+        }
+      });
+      
+      document.getElementById("executeQuery")?.addEventListener("click", () => {
+        const queryTextarea = document.getElementById("graphqlQuery");
+        const resultDiv = document.getElementById("customQueryResult");
+        
+        if (!queryTextarea || !resultDiv) return;
+        
+        const query = queryTextarea.value.trim();
+        if (!query) {
+          resultDiv.innerHTML = "Please enter a GraphQL query";
+          return;
+        }
+        
+        resultDiv.innerHTML = "Executing query...";
+        
+        try {
+          safeApiCall(monday.api(query), "customQueryResult")
+            .then(res => {
+              if (res) {
+                const formattedResult = JSON.stringify(res, null, 2);
+                resultDiv.innerHTML = `<pre style="margin: 0; white-space: pre-wrap;">${formattedResult}</pre>`;
+              }
+            });
+        } catch (error) {
+          resultDiv.innerHTML = "Error executing query: " + (error.message || JSON.stringify(error));
+        }
+      });
+      
+      // monday.execute methods
+      document.getElementById("showNotice")?.addEventListener("click", () => {
+        try {
+          monday.execute("notice", { 
+            message: "This is a test message!",
+            type: "success",
+            timeout: 5000,
+          });
+        } catch (error) {
+          console.error("Error showing notice:", error);
+        }
+      });
+      
+      document.getElementById("triggerFileUpload")?.addEventListener("click", () => {
+        document.getElementById("fileUploadResult").innerHTML = "Loading context...";
+        safeApiCall(monday.get("context"), "fileUploadResult")
+          .then(res => {
+            if (res && res.data) {
+              const boardId = res.data.boardId;
+              const itemId = res.data.itemId;
+              
+              if (boardId && itemId) {
+                try {
+                  monday.execute('triggerFilesUpload', {
+                    boardId: boardId,
+                    itemId: itemId,
+                    columnId: 'files'
+                  });
+                  document.getElementById("fileUploadResult").innerHTML = `Triggered file upload for board: ${boardId}, item: ${itemId}`;
+                } catch (error) {
+                  document.getElementById("fileUploadResult").innerHTML = "Error triggering file upload: " + error.message;
+                }
+              } else {
+                document.getElementById("fileUploadResult").innerHTML = "Missing boardId or itemId in context. This feature may only work in item view.";
+              }
+            }
+          });
+      });
+      
+      document.getElementById("confirmAction")?.addEventListener("click", () => {
+        try {
+          monday.execute("confirm", {
+            message: "Are you sure you want to perform this action?",
+            confirmButton: "Yes, do it!",
+            cancelButton: "Cancel",
+            excludeCancelButton: false
+          }).then(res => {
+            document.getElementById("confirmResult").innerHTML = "Result: " + JSON.stringify(res || {});
+          }).catch(err => {
+            document.getElementById("confirmResult").innerHTML = "Error: " + (err.message || JSON.stringify(err));
+          });
+        } catch (error) {
+          document.getElementById("confirmResult").innerHTML = "Error executing confirm: " + error.message;
+        }
+      });
+      
+      // monday.listen methods
+      document.getElementById("listenContext")?.addEventListener("click", () => {
+        try {
+          const listenId = monday.listen("context", (res) => {
+            if (res && res.data) {
+              document.getElementById("listenContextResult").innerHTML = JSON.stringify(res.data, null, 2);
+            } else {
+              document.getElementById("listenContextResult").innerHTML = "Received empty context data";
+            }
+          });
+          document.getElementById("listenContextResult").innerHTML = "Listening for context changes... (listener ID: " + listenId + ")";
+        } catch (error) {
+          document.getElementById("listenContextResult").innerHTML = "Error setting up context listener: " + error.message;
+        }
+      });
+      
+      document.getElementById("listenItemIds")?.addEventListener("click", () => {
+        try {
+          const listenId = monday.listen("itemIds", (res) => {
+            if (res && res.data) {
+              document.getElementById("listenItemIdsResult").innerHTML = JSON.stringify(res.data, null, 2);
+            } else {
+              document.getElementById("listenItemIdsResult").innerHTML = "Received empty itemIds data";
+            }
+          });
+          document.getElementById("listenItemIdsResult").innerHTML = "Listening for item ID changes... (listener ID: " + listenId + ")";
+        } catch (error) {
+          document.getElementById("listenItemIdsResult").innerHTML = "Error setting up itemIds listener: " + error.message;
+        }
+      });
+      
+      document.getElementById("listenEvents")?.addEventListener("click", () => {
+        try {
+          const listenId = monday.listen("events", (res) => {
+            if (res && res.data) {
+              document.getElementById("listenEventsResult").innerHTML = JSON.stringify(res.data, null, 2);
+            } else {
+              document.getElementById("listenEventsResult").innerHTML = "Received empty events data";
+            }
+          });
+          document.getElementById("listenEventsResult").innerHTML = "Listening for events... (listener ID: " + listenId + ")";
+        } catch (error) {
+          document.getElementById("listenEventsResult").innerHTML = "Error setting up events listener: " + error.message;
+        }
+      });
+      
+      // monday.storage methods
+      document.getElementById("storageInstance")?.addEventListener("click", () => {
+        document.getElementById("storageInstanceResult").innerHTML = "Loading...";
+        try {
+          monday.storage.instance.getItem("testKey")
+            .then(res => {
+              if (res && res.data) {
+                const value = res.data.value;
+                document.getElementById("storageInstanceResult").innerHTML = "Current value: " + (value || "null");
+              } else {
+                document.getElementById("storageInstanceResult").innerHTML = "No data received";
+              }
+            })
+            .catch(err => {
+              document.getElementById("storageInstanceResult").innerHTML = "Error: " + (err.message || JSON.stringify(err));
+            });
+        } catch (error) {
+          document.getElementById("storageInstanceResult").innerHTML = "Error accessing instance storage: " + error.message;
+        }
+      });
+      
+      document.getElementById("storageInstanceSet")?.addEventListener("click", () => {
+        const value = prompt("Enter a value to store:");
+        if (value) {
+          try {
+            monday.storage.instance.setItem("testKey", value)
+              .then(res => {
+                document.getElementById("storageInstanceResult").innerHTML = "Stored value: " + value;
+              })
+              .catch(err => {
+                document.getElementById("storageInstanceResult").innerHTML = "Error setting value: " + (err.message || JSON.stringify(err));
+              });
+          } catch (error) {
+            document.getElementById("storageInstanceResult").innerHTML = "Error accessing instance storage: " + error.message;
+          }
+        }
+      });
+      
+      document.getElementById("storageGlobal")?.addEventListener("click", () => {
+        document.getElementById("storageGlobalResult").innerHTML = "Loading...";
+        try {
+          monday.storage.getItem("globalTestKey")
+            .then(res => {
+              if (res && res.data) {
+                const value = res.data.value;
+                document.getElementById("storageGlobalResult").innerHTML = "Current value: " + (value || "null");
+              } else {
+                document.getElementById("storageGlobalResult").innerHTML = "No data received";
+              }
+            })
+            .catch(err => {
+              document.getElementById("storageGlobalResult").innerHTML = "Error: " + (err.message || JSON.stringify(err));
+            });
+        } catch (error) {
+          document.getElementById("storageGlobalResult").innerHTML = "Error accessing global storage: " + error.message;
+        }
+      });
+      
+      document.getElementById("storageGlobalSet")?.addEventListener("click", () => {
+        const value = prompt("Enter a value to store for global:");
+        if (value) {
+          try {
+            monday.storage.setItem("globalTestKey", value)
+              .then(res => {
+                document.getElementById("storageGlobalResult").innerHTML = "Stored value: " + value;
+              })
+              .catch(err => {
+                document.getElementById("storageGlobalResult").innerHTML = "Error setting value: " + (err.message || JSON.stringify(err));
+              });
+          } catch (error) {
+            document.getElementById("storageGlobalResult").innerHTML = "Error accessing global storage: " + error.message;
+          }
+        }
+      });
+      
+      document.getElementById("storageGlobalSearch")?.addEventListener("click", () => {
+        document.getElementById("storageGlobalResult").innerHTML = "Loading...";
+        try {
+          monday.storage.searchItem("globalTest")
+            .then(res => {
+              if (res && res.data) {
+                const formattedResult = JSON.stringify(res.data, null, 2);
+                document.getElementById("storageGlobalResult").innerHTML = `<pre style="margin: 0; white-space: pre-wrap;">${formattedResult}</pre>`;
+              }
+            })
+            .catch(err => {
+              document.getElementById("storageGlobalResult").innerHTML = "Error: " + (err.message || JSON.stringify(err));
+            });
+        } catch (error) {
+          document.getElementById("storageGlobalResult").innerHTML = "Error: " + (error.message || JSON.stringify(error));
+        }
+      });
+      
+      document.getElementById("storageGlobalDelete")?.addEventListener("click", () => {
+        document.getElementById("storageGlobalResult").innerHTML = "Loading...";
+        try {
+          monday.storage.deleteItem("globalTestKey")
+            .then(res => {
+              if (res && res.data) {
+                document.getElementById("storageGlobalResult").innerHTML = "Deleted successfully";
+              }
+            })
+            .catch(err => {
+              document.getElementById("storageGlobalResult").innerHTML = "Error: " + (err.message || JSON.stringify(err));
+            });
+        } catch (error) {
+          document.getElementById("storageGlobalResult").innerHTML = "Error: " + (error.message || JSON.stringify(error));
+        }
+      });
+      
+      document.getElementById("storageUser")?.addEventListener("click", () => {
+        document.getElementById("storageUserResult").innerHTML = "Loading...";
+        try {
+          monday.storage.user.getItem("userTestKey")
+            .then(res => {
+              if (res && res.data) {
+                const value = res.data.value;
+                document.getElementById("storageUserResult").innerHTML = "Current value: " + (value || "null");
+              } else {
+                document.getElementById("storageUserResult").innerHTML = "No data received";
+              }
+            })
+            .catch(err => {
+              document.getElementById("storageUserResult").innerHTML = "Error: " + (err.message || JSON.stringify(err));
+            });
+        } catch (error) {
+          document.getElementById("storageUserResult").innerHTML = "Error accessing user storage: " + error.message;
+        }
+      });
+      
+      document.getElementById("storageUserSet")?.addEventListener("click", () => {
+        const value = prompt("Enter a value to store for user:");
+        if (value) {
+          try {
+            monday.storage.user.setItem("userTestKey", value)
+              .then(res => {
+                document.getElementById("storageUserResult").innerHTML = "Stored value: " + value;
+              })
+              .catch(err => {
+                document.getElementById("storageUserResult").innerHTML = "Error setting value: " + (err.message || JSON.stringify(err));
+              });
+          } catch (error) {
+            document.getElementById("storageUserResult").innerHTML = "Error accessing user storage: " + error.message;
+          }
+        }
+      });
+      
+      // monday.set methods
+      document.getElementById("setToken")?.addEventListener("click", () => {
+        const token = prompt("Enter API token (note: this is for demo only, don't use in production):");
+        if (token) {
+          try {
+            monday.setToken(token);
+            document.getElementById("setTokenResult").innerHTML = "Token set successfully";
+          } catch (error) {
+            document.getElementById("setTokenResult").innerHTML = "Error setting token: " + error.message;
+          }
+        }
+      });
+      
+      document.getElementById("setApiVersion")?.addEventListener("click", () => {
+        const version = prompt("Enter API version (e.g. 2025-01):", "2025-01");
+        if (version) {
+          try {
+            monday.setApiVersion(version);
+            document.getElementById("setApiVersionResult").innerHTML = "API version set to: " + version;
+          } catch (error) {
+            document.getElementById("setApiVersionResult").innerHTML = "Error setting API version: " + error.message;
+          }
+        }
+      });
+      
+      // Customer Request Test section
+      document.getElementById("customerRequestToggle")?.addEventListener("click", () => {
+        const container = document.getElementById("customerRequestContainer");
+        if (container) {
+          const isCurrentlyVisible = container.style.display !== "none";
+          container.style.display = isCurrentlyVisible ? "none" : "block";
+        }
+      });
+      
+      document.getElementById("executeCustomerRequest")?.addEventListener("click", async () => {
+        const queryTextarea = document.getElementById("customerRequestQuery");
+        const resultDiv = document.getElementById("customerRequestResult");
+        
+        if (!queryTextarea || !resultDiv) return;
+        
+        const query = queryTextarea.value.trim();
+        if (!query) {
+          resultDiv.innerHTML = "Please enter a GraphQL query";
+          return;
+        }
+        
+        resultDiv.innerHTML = "Executing customer request...";
+        
+        try {
+          // Using the exact implementation provided by the user, but with better error handling
+          let response;
+          try {
+            response = await monday.api(query);
+          } catch (apiError) {
+            // Capture the error so we can log it and still continue execution
+            console.log("API Error Caught:", apiError);
+            
+            // Extract status code from various possible locations in the error object
+            let statusCode = apiError.status;
+            
+            // Check if the error is in the deeply nested structure (complexity budget format)
+            if (apiError.data?.errors?.[0]?.extensions?.status_code) {
+              statusCode = apiError.data.errors[0].extensions.status_code;
+            }
+            
+            // Create a response object with the error info so we can process it consistently
+            response = {
+              error: true,
+              status: statusCode || 'unknown',
+              message: apiError.message || 'Unknown error',
+              errors: apiError.errors || (apiError.data?.errors) || [{message: apiError.message || 'Unknown error'}],
+              originalError: apiError
+            };
+            
+            // Use the more specific error message from the errors array if available
+            if (response.errors && response.errors[0] && response.errors[0].message) {
+              response.message = response.errors[0].message;
+            } else if (apiError.data?.errors?.[0]?.message) {
+              response.message = apiError.data.errors[0].message;
+            }
+            
+            // Enhanced error handling based on status codes
+            if (statusCode === 429 || 
+                apiError.data?.errors?.[0]?.extensions?.code === 'COMPLEXITY_BUDGET_EXHAUSTED') {
+              // Rate limit handling
+              // First try to get retry value from headers
+              let retryAfter = apiError.headers?.get('Retry-After');
+              
+              // If not in headers, check the nested structure for retry_in_seconds
+              if (!retryAfter && apiError.data?.errors?.[0]?.extensions?.retry_in_seconds) {
+                retryAfter = apiError.data.errors[0].extensions.retry_in_seconds;
+              }
+              
+              // Default to 60 if all else fails
+              retryAfter = retryAfter || '60';
+              
+              response.retryAfter = retryAfter;
+              response.status = 429; // Ensure status is set to 429 for rate limit errors
+              
+              // Determine the rate limit type
+              if (apiError.data?.errors?.[0]?.extensions?.code === 'COMPLEXITY_BUDGET_EXHAUSTED') {
+                response.rateLimitType = 'COMPLEXITY_BUDGET_EXHAUSTED';
+                response.complexityInfo = {
+                  complexity: apiError.data?.errors?.[0]?.extensions?.complexity,
+                  budget_left: apiError.data?.errors?.[0]?.extensions?.complexity_budget_left,
+                  budget_limit: apiError.data?.errors?.[0]?.extensions?.complexity_budget_limit
+                };
+              } else if (apiError.message?.includes('IP')) {
+                response.rateLimitType = 'IP_RATE_LIMIT_EXCEEDED';
+              } else {
+                response.rateLimitType = 'Rate Limit Exceeded';
+              }
+            } else if (statusCode >= 500) {
+              // Server errors
+              response.errorType = 'ServerError';
+              response.recommendation = 'Retry your request after a short period';
+            } else if (statusCode === 401) {
+              // Authentication errors
+              response.errorType = 'AuthenticationError';
+              response.recommendation = apiError.message?.includes('ip is restricted') ? 
+                'Your IP address may be restricted by your account admin' : 
+                'Verify your API token is valid and has proper permissions';
+            } else if (statusCode === 403) {
+              // Permission errors
+              response.errorType = 'PermissionError';
+              response.recommendation = 'Verify the user has permission to access this resource';
+            } else if (statusCode === 400) {
+              // Bad request
+              response.errorType = 'BadRequestError';
+              response.recommendation = 'Check your query format and JSON structure';
+            } else if (statusCode === 200 && apiError.errors) {
+              // Application-level errors
+              const errorCode = apiError.errors[0]?.extensions?.code;
+              response.errorCode = errorCode;
+              
+              // Add recommended actions based on error code
+              if (errorCode === 'ColumnValueException') {
+                response.recommendation = 'Verify column value formatting matches the required structure';
+              } else if (errorCode === 'InvalidArgumentException') {
+                response.recommendation = 'Check argument values and verify IDs exist';
+              } else if (errorCode === 'ResourceNotFoundException') {
+                response.recommendation = 'Verify that the resource ID exists';
+              } else if (errorCode === 'ItemsLimitationException') {
+                response.recommendation = 'Board has exceeded the 10,000 items limit';
+              } else if (errorCode === 'API_TEMPORARILY_BLOCKED') {
+                response.recommendation = 'API is temporarily blocked, check status.monday.com';
+              }
+            }
+          }
+          
+          // These console logs will now always execute, even for 429 errors
+          console.log("Response:", response);
+          console.log("Error :", response?.errors);
+          
+          // Display the response and any errors in the UI
+          let resultHTML = `<div style="margin-bottom: 10px;"><strong>Response:</strong></div>
+<pre style="margin: 0 0 15px 0; white-space: pre-wrap; background-color: #f5f5f5; padding: 10px; border-radius: 4px;">${JSON.stringify(response, null, 2)}</pre>`;
+          
+          if (response?.errors || response?.error) {
+            resultHTML += `<div style="margin-bottom: 10px; color: #e44258;"><strong>Errors:</strong></div>
+<pre style="margin: 0; white-space: pre-wrap; background-color: #fff0f0; padding: 10px; border-radius: 4px; border: 1px solid #ffcccc;">${JSON.stringify(response.errors || response.error, null, 2)}</pre>`;
+            
+            if (response.errorType || response.errorCode) {
+              resultHTML += `<div style="margin-top: 10px; padding: 10px; background-color: #fff9e0; border-radius: 4px; border: 1px solid #ffc107;">
+<strong>Error Type: ${response.errorType || response.errorCode}</strong><br>
+${response.recommendation || ''}
+</div>`;
+            }
+            
+            if (response.status === 429) {
+              resultHTML += `<div style="margin-top: 10px; padding: 10px; background-color: #fff9e0; border-radius: 4px; border: 1px solid #ffc107;">
+<strong>429 Rate Limit Exceeded - ${response.rateLimitType || ''}</strong>: You've hit the monday.com API rate limit. 
+${response.retryAfter ? `Please wait ${response.retryAfter} seconds before trying again.` : 'Please wait a moment before trying again.'}
+</div>`;
+              
+              // If it's a complexity budget exhausted error, show extra details
+              if (response.complexityInfo) {
+                resultHTML += `<div style="margin-top: 10px; padding: 10px; background-color: #f0f4ff; border-radius: 4px; border: 1px solid #ccd8ff;">
+<strong>Complexity Information:</strong><br>
+Current query complexity: ${response.complexityInfo.complexity || 'N/A'}<br>
+Budget left: ${response.complexityInfo.budget_left || 'N/A'}<br>
+Budget limit: ${response.complexityInfo.budget_limit || 'N/A'}<br>
+<br>
+<em>Tip: Try reducing the complexity of your query by requesting fewer fields or items.</em>
+</div>`;
+              }
+            }
+          }
+          
+          resultDiv.innerHTML = resultHTML;
+        } catch (error) {
+          // This is for errors in our own code, not the API call
+          const errorMessage = `<div style="color: #e44258;"><strong>Error executing query:</strong> ${error.message || JSON.stringify(error)}</div>`;
+          console.error("Error in customer request execution:", error);
+          resultDiv.innerHTML = errorMessage;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
