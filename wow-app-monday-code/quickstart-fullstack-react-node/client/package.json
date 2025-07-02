@@ -10,6 +10,7 @@
     "eject": "react-scripts eject"
   },
   "dependencies": {
+    "@mondaydotcomorg/api": "^10.0.5",
     "@vibe/core": "^3.0.0",
     "monday-sdk-js": "^0.5.5"
   },

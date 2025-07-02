@@ -1,92 +1,128 @@
 import React, { useState } from 'react';
 import { Button, Box, Heading, Text, Flex, TextArea, Divider } from "@vibe/core";
 import { mondayApiService } from '../services/mondayApiService';
-import { ResponseDisplay } from './ResponseDisplay';
 
 /**
  * Local API Tester Component
  * For testing API functions locally without Monday iframe context
  */
 export const LocalApiTester: React.FC = () => {
-  const [testResults, setTestResults] = useState<any[]>([]);
+  const [latestResult, setLatestResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [customQuery, setCustomQuery] = useState('query GetMyInfo { me { id name email } }');
+  const [singleLoading, setSingleLoading] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, any>>({});
 
-  const addTestResult = (title: string, result: any) => {
-    setTestResults(prev => [...prev, { title, result, timestamp: new Date().toLocaleTimeString() }]);
+  const setTestResult = (title: string, result: any) => {
+    setLatestResult({ 
+      title, 
+      result, 
+      timestamp: new Date().toLocaleTimeString(),
+      fullResponse: result // Store the complete response
+    });
   };
 
-  const runAllTests = async () => {
+  const testAllApiFunctions = async () => {
     setLoading(true);
-    setTestResults([]);
-    addTestResult('🚀 Test Session Started', { message: 'Running comprehensive API tests...' });
-
+    setResults({});
+    const testResults: Record<string, any> = {};
+    
     try {
-      // Test 1: Fetch Board Data
-      addTestResult('📊 Fetching Board Data', { status: 'Starting...' });
+      // Test Board Data - fetch all boards (up to 5)
       const boardData = await mondayApiService.fetchBoardData();
-      addTestResult('📊 Board Data Result', boardData);
+      testResults.boardData = boardData;
+      setResults(prev => ({ ...prev, boardData }));
 
-      // Test 2: Get Users
-      addTestResult('👥 Getting Users', { status: 'Starting...' });
+      // Test Users
       const users = await mondayApiService.getUsers();
-      addTestResult('👥 Users Result', users);
+      testResults.users = users;
+      setResults(prev => ({ ...prev, users }));
 
-      // Test 3: Custom Query
-      addTestResult('🔧 Custom Query Test', { status: 'Starting...' });
+      // Test Custom Query
       const customResult = await mondayApiService.executeCustomQuery(customQuery);
-      addTestResult('🔧 Custom Query Result', customResult);
+      testResults.customQuery = customResult;
+      setResults(prev => ({ ...prev, customQuery: customResult }));
 
-      // Test 4: API Playground
-      addTestResult('🎮 API Playground Test', { status: 'Starting...' });
+      // Test API Playground
       const playgroundResult = await mondayApiService.executeApiPlaygroundQuery(
-        'query GetMyInfoWithAccount { me { id name email account { id name } } }',
-        'client'
+        'query GetMyInfoWithAccount { me { id name email account { id name } } }'
       );
-      addTestResult('🎮 API Playground Result', playgroundResult);
+      testResults.playground = playgroundResult;
+      setResults(prev => ({ ...prev, playground: playgroundResult }));
 
-      addTestResult('✅ All Tests Completed', { 
-        message: 'All API tests completed successfully!',
+      // Set the latest result to a summary of all tests
+      setTestResult('All API Functions Test Suite', {
+        success: true,
         totalTests: 4,
-        timestamp: new Date().toISOString()
+        results: testResults,
+        summary: 'Completed all API function tests'
       });
 
     } catch (error: any) {
-      addTestResult('❌ Test Error', { 
-        error: error.message,
-        stack: error.stack 
-      });
+      console.error('API testing error:', error);
+      const errorResult = { 
+        error: true, 
+        message: error.message,
+        fullResponse: error 
+      };
+      setResults(prev => ({ 
+        ...prev, 
+        error: errorResult
+      }));
+      setTestResult('All API Functions Test Suite', errorResult);
     } finally {
       setLoading(false);
     }
   };
 
-  const testSingleFunction = async (testName: string, testFn: () => Promise<any>) => {
-    setLoading(true);
+  const testSingleFunction = async (name: string, fn: () => Promise<any>) => {
+    setSingleLoading(name);
     try {
-      addTestResult(`🔄 ${testName}`, { status: 'Starting...' });
-      const result = await testFn();
-      addTestResult(`✅ ${testName} Result`, result);
+      const result = await fn();
+      setResults(prev => ({ ...prev, [name.toLowerCase().replace(' ', '')]: result }));
+      setTestResult(name, result);
     } catch (error: any) {
-      addTestResult(`❌ ${testName} Error`, { 
-        error: error.message,
-        stack: error.stack 
-      });
+      console.error(`${name} error:`, error);
+      const errorResult = { 
+        error: true, 
+        message: error.message,
+        fullResponse: error 
+      };
+      setResults(prev => ({ 
+        ...prev, 
+        [name.toLowerCase().replace(' ', '')]: errorResult
+      }));
+      setTestResult(name, errorResult);
     } finally {
-      setLoading(false);
+      setSingleLoading(null);
     }
   };
 
   const clearResults = () => {
-    setTestResults([]);
+    setLatestResult(null);
   };
 
   return (
     <Box style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
       <Heading type="h2">🧪 Local API Testing Suite</Heading>
       <Text size="small" color="secondary" style={{ marginBottom: '20px' }}>
-        Test Monday API functions locally with mock data. Note: Real API calls will fail outside Monday iframe.
+        Test Monday API functions locally. Note: API calls will fail outside Monday iframe due to authentication context. Check the Latest Test Result section below to see responses.
       </Text>
+
+      {/* Important Notice */}
+      <Box style={{ 
+        padding: '15px', 
+        backgroundColor: '#fff3cd', 
+        borderRadius: '8px', 
+        marginBottom: '20px',
+        border: '1px solid #ffeaa7'
+      }}>
+        <Text weight="bold" style={{ marginBottom: '8px' }}>⚠️ Authentication Notice:</Text>
+        <Text size="small">
+          Since we're running outside the Monday iframe context, API calls will fail due to missing authentication tokens. 
+          However, you can still test the error handling and see the complete request/response structure including headers and debug information.
+        </Text>
+      </Box>
 
       {/* Control Panel */}
       <Box style={{ 
@@ -97,7 +133,7 @@ export const LocalApiTester: React.FC = () => {
       }}>
         <Flex gap="medium" wrap style={{ marginBottom: '15px' }}>
           <Button 
-            onClick={runAllTests} 
+            onClick={testAllApiFunctions} 
             disabled={loading}
             loading={loading}
             size="medium"
@@ -106,19 +142,17 @@ export const LocalApiTester: React.FC = () => {
           </Button>
           <Button 
             onClick={() => testSingleFunction('Board Data', () => mondayApiService.fetchBoardData())}
-            disabled={loading}
+            disabled={singleLoading === 'Board Data'}
             size="small"
-            kind="secondary"
           >
-            📊 Test Board Data
+            {singleLoading === 'Board Data' ? 'Testing...' : '🏁 Test Board Data'}
           </Button>
           <Button 
             onClick={() => testSingleFunction('Users', () => mondayApiService.getUsers())}
-            disabled={loading}
+            disabled={singleLoading === 'Users'}
             size="small"
-            kind="secondary"
           >
-            👥 Test Users
+            {singleLoading === 'Users' ? 'Testing...' : '👥 Test Users'}
           </Button>
           <Button 
             onClick={clearResults}
@@ -134,62 +168,79 @@ export const LocalApiTester: React.FC = () => {
           <Text weight="bold" style={{ marginBottom: '8px' }}>Custom Query Test:</Text>
           <TextArea
             value={customQuery}
-            onChange={setCustomQuery}
+            onChange={(event) => {
+              // Handle both string and event object cases
+              const value = typeof event === 'string' ? event : event?.target?.value || '';
+              setCustomQuery(value);
+            }}
             placeholder="Enter your GraphQL query here..."
             rows={3}
             style={{ marginBottom: '8px' }}
           />
           <Button
             onClick={() => testSingleFunction('Custom Query', () => mondayApiService.executeCustomQuery(customQuery))}
-            disabled={loading}
+            disabled={singleLoading === 'Custom Query'}
             size="small"
           >
-            🔧 Test Custom Query
+            {singleLoading === 'Custom Query' ? 'Testing...' : '🚀 Test Custom Query'}
           </Button>
         </Box>
       </Box>
 
       <Divider />
 
-      {/* Results Display */}
+      {/* Latest Result Display */}
       <Box style={{ marginTop: '20px' }}>
         <Heading type="h4" style={{ marginBottom: '15px' }}>
-          📋 Test Results ({testResults.length})
+          📋 Latest Test Result
         </Heading>
         
-        {testResults.length === 0 && (
+        {!latestResult && (
           <Box style={{ 
             padding: '20px', 
             textAlign: 'center', 
             backgroundColor: '#f0f0f0', 
             borderRadius: '8px' 
           }}>
-            <Text color="secondary">No test results yet. Run some tests to see results here.</Text>
+            <Text color="secondary">No test results yet. Run a test to see the result here.</Text>
           </Box>
         )}
 
-        {testResults.map((result, index) => (
+        {latestResult && (
           <Box 
-            key={index}
             style={{ 
               marginBottom: '15px',
-              padding: '10px',
+              padding: '15px',
               backgroundColor: '#ffffff',
-              border: '1px solid #e0e0e0',
-              borderRadius: '6px'
+              border: '2px solid #007bff',
+              borderRadius: '8px'
             }}
           >
-            <Flex justify="space-between" align="center" style={{ marginBottom: '8px' }}>
-              <Text weight="bold">{result.title}</Text>
-              <Text size="small" color="secondary">{result.timestamp}</Text>
+            <Flex justify="space-between" align="center" style={{ marginBottom: '12px' }}>
+              <Text weight="bold" size="medium">{latestResult.title}</Text>
+              <Text size="small" color="secondary">{latestResult.timestamp}</Text>
             </Flex>
-            <ResponseDisplay 
-              data={result.result} 
-              title=""
-              testId={`test-result-${index}`}
-            />
+            
+            {/* Full Response Display */}
+            <Box style={{ marginBottom: '10px' }}>
+              <Text weight="bold" size="small" style={{ marginBottom: '5px' }}>📊 Full API Response:</Text>
+              <Box style={{ 
+                padding: '12px', 
+                backgroundColor: '#f8f9fa', 
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                border: '1px solid #dee2e6'
+              }}>
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {JSON.stringify(latestResult.fullResponse, null, 2)}
+                </pre>
+              </Box>
+            </Box>
           </Box>
-        ))}
+        )}
       </Box>
 
       {/* Instructions */}

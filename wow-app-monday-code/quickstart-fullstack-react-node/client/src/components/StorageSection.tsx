@@ -1,17 +1,15 @@
 import React from 'react';
-import { TextField, Button, Box, Heading, Text, Flex } from "@vibe/core";
+import { Button, Box, Heading, Text, Flex } from "@vibe/core";
 import { StorageData } from '../types/monday.types';
-import { ResponseDisplay } from './ResponseDisplay';
 
 interface StorageSectionProps {
-  storageExampleText: string;
   instanceStorage: StorageData | null;
   globalStorage: StorageData | null;
-  onUpdateStorageText: (text: string) => void;
   onTestInstanceStorage: () => void;
   onSetInstanceStorageValue: () => void;
   onTestGlobalStorage: () => void;
   onSetGlobalStorageValue: () => void;
+  onTestStorageAuth?: () => void;
 }
 
 /**
@@ -20,31 +18,35 @@ interface StorageSectionProps {
  * Separated for better code organization and testability
  */
 export const StorageSection: React.FC<StorageSectionProps> = ({
-  storageExampleText,
   instanceStorage,
   globalStorage,
-  onUpdateStorageText,
   onTestInstanceStorage,
   onSetInstanceStorageValue,
   onTestGlobalStorage,
   onSetGlobalStorageValue,
+  onTestStorageAuth,
 }) => {
   return (
     <Box>
       <Heading type="h4">💾 Monday Storage (monday.storage)</Heading>
       
-      {/* Main Storage Input */}
-      <TextField 
-        title="My first text field" 
-        value={storageExampleText} 
-        onChange={onUpdateStorageText}
-        data-testid="storage-text-field"
-      />
-      <Text size="small" color="secondary" style={{ marginBottom: '10px' }}>
-        Type something and it will be saved to Monday storage!
-      </Text>
-      
-      {/* Storage Action Buttons */}
+      {/* Debug Section */}
+      {onTestStorageAuth && (
+        <Box style={{ padding: '10px', backgroundColor: '#fff3cd', borderRadius: '6px', marginBottom: '10px' }}>
+          <Text size="small" weight="bold" style={{ marginBottom: '5px' }}>
+            🔧 Debug Storage Authentication
+          </Text>
+          <Button 
+            size="small" 
+            onClick={onTestStorageAuth}
+            data-testid="test-storage-auth-btn"
+          >
+            Test Storage Auth
+          </Button>
+        </Box>
+             )}
+       
+       {/* Storage Action Buttons */}
       <Flex gap="small" wrap>
         <Button 
           size="small" 

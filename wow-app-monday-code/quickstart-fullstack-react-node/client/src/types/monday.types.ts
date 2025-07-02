@@ -20,6 +20,18 @@ export interface ApiResponse<T = any> {
       [key: string]: any;
     };
   }>;
+  fullResponse?: any; // Complete API response for debugging and advanced error handling
+  requestInfo?: {
+    query?: string;
+    variables?: any;
+    method?: string;
+    url?: string;
+    headers?: Record<string, string>;
+    timestamp?: string;
+    apiVersion?: string;
+    queryType: string;
+    token?: string; // Add token for debugging authentication
+  }; // Complete request information for debugging
 }
 
 export interface BoardData {
@@ -61,47 +73,53 @@ export interface ExecuteResult {
 }
 
 export interface AppState {
-  // Context and initialization
-  context: MondayContext | null;
+  // Loading states
   initLoading: boolean;
-  
-  // API data
-  apiData: ApiResponse<{ me: MeData; boards: BoardData[] }> | null;
   apiLoading: boolean;
-  users: ApiResponse<{ users: UserData[] }> | null;
-  
-  // Monday.get data
-  itemIds: any;
-  sessionToken: string;
-  filter: any;
-  locationData: any;
+
+  // Monday context and client info
+  context: MondayContext | null;
+  theme: string;
+  location: any;
   clientInfo: any;
-  
+
   // Storage data
-  storageExampleText: string;
   instanceStorage: StorageData | null;
   globalStorage: StorageData | null;
+
+  // API data
+  apiData: ApiResponse<{ boards: BoardData[] }> | null;
+  users: ApiResponse<{ users: UserData[] }> | null;
   
-  // Query playground
-  customQuery: string;
-  customQueryResult: ApiResponse | null;
-  showCustomQuery: boolean;
-  apiPlaygroundQuery: string;
-  apiPlaygroundResult: ApiResponse | null;
-  showApiPlayground: boolean;
-  apiQueryType: 'client' | 'server';
-  
-  // Listeners
+  // Single latest API response for unified display
+  latestApiResponse: (ApiResponse & { apiCallType?: string }) | null;
+
+  // Monday.get data
+  itemIds: any;
+  sessionToken: string | null;
+  filter: any;
+  locationData: any;
+
+  // Execute results
+  executeResults: Record<string, ExecuteResult>;
+
+  // Listener data
   contextListener: any;
   itemIdsListener: any;
   eventsListener: any;
-  
-  // Execute results
-  executeResults: Record<string, ExecuteResult>;
-  
-  // UI state
-  theme: string;
-  location: any;
+
+  // Custom query functionality
+  customQuery: string;
+  customQueryResult: ApiResponse | null;
+  showCustomQuery: boolean;
+
+  // API Playground functionality
+  apiPlaygroundQuery: string;
+  apiPlaygroundResult: ApiResponse | null;
+  showApiPlayground: boolean;
+
+  // Tab state
+  activeTab: 'get' | 'storage' | 'api' | 'execute' | 'listen' | 'local';
 }
 
 export interface MondayApiService {

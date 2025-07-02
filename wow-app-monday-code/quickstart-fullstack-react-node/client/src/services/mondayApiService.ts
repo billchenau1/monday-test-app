@@ -1,222 +1,471 @@
-import mondaySdk, { MondayClientSdk } from "monday-sdk-js";
-import { ApiResponse, BoardData, MeData, UserData } from "../types/monday.types";
-
-// Initialize Monday SDK with seamless authentication
-const monday: MondayClientSdk = mondaySdk();
-monday.setApiVersion("2025-04");
+import { SeamlessApiClient } from '@mondaydotcomorg/api';
+import { ApiResponse, BoardData, UserData } from '../types/monday.types';
 
 /**
  * Monday API Service
- * Handles all Monday.com API interactions with proper error handling
- * Uses seamless authentication for iframe context
+ * Handles all API interactions with Monday.com GraphQL API using SeamlessApiClient
+ * Implements proper error handling, token management, and request tracking
  */
-export class MondayApiService {
+class MondayApiService {
+  private client: SeamlessApiClient;
+  private static instance: MondayApiService;
+
+  private constructor() {
+    this.client = new SeamlessApiClient();
+  }
+
   /**
-   * Fetches board data including user info and boards
-   * @returns Promise<ApiResponse> with board and user data
+   * Get singleton instance of the service
    */
-  async fetchBoardData(): Promise<ApiResponse<{ me: MeData; boards: BoardData[] }>> {
+  public static getInstance(): MondayApiService {
+    if (!MondayApiService.instance) {
+      MondayApiService.instance = new MondayApiService();
+    }
+    return MondayApiService.instance;
+  }
+
+  /**
+   * Get authorization token for debugging
+   * @returns Promise<string | null> - The current token or null if not available
+   */
+  private async getToken(): Promise<string | null> {
     try {
-      const query = `
-        query GetBoardData {
-          me {
+      // Try to access the internal token from the client
+      // This is for debugging purposes only
+      const token = (this.client as any)?._token || null;
+      return token;
+    } catch (error) {
+      console.warn('Could not access token for debugging:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch board data from Monday API
+   * @returns Promise<ApiResponse<BoardData[]>> - Returns up to 5 boards from the account
+   */
+  async fetchBoardData(): Promise<ApiResponse<{ boards: BoardData[] }>> {
+    const query = `
+      query {
+        boards(limit: 5) {
+          id
+          name
+          description
+          board_kind
+          state
+          workspace {
             id
             name
-            email
-            account {
+          }
+          groups {
+            id
+            title
+            color
+          }
+          columns {
+            id
+            title
+            type
+            settings_str
+          }
+          items_page(limit: 5) {
+            cursor
+            items {
               id
               name
+              created_at
+              updated_at
+              state
+              group {
+                id
+                title
+              }
+              column_values {
+                id
+                text
+                value
+                column {
+                  id
+                  title
+                  type
+                }
+              }
             }
           }
-          boards(limit: 3) {
-            id
-            name
-            description
-            state
-            board_kind
-          }
         }
-      `;
+      }
+    `;
+
+    const variables = {};
+    const timestamp = new Date().toISOString();
+
+    try {
+      const token = await this.getToken();
       
-      console.log("Executing board data query:", query);
-      const response = await monday.api(query);
-      console.log("Board data response:", response);
+      const response = await this.client.request(query, variables) as any;
       
-      // Check for GraphQL errors in the response
-      if ((response as any).errors && (response as any).errors.length > 0) {
-        console.error("GraphQL errors:", (response as any).errors);
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'boards',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
+      // Check for GraphQL errors in response
+      if (response.error || response.data?.error) {
         return {
+          data: undefined,
           error: true,
-          message: "GraphQL validation errors",
-          errors: (response as any).errors,
-          data: {
-            // Fallback data for demo purposes
-            me: { 
-              id: "demo", 
-              name: "Demo User", 
-              email: "demo@monday.com", 
-              account: { id: "demo", name: "Demo Account" } 
-            },
-            boards: [
-              { id: "1", name: "Demo Board 1", description: "Sample board", state: "active", board_kind: "public" },
-              { id: "2", name: "Demo Board 2", description: "Another sample", state: "active", board_kind: "public" }
-            ]
-          }
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
         };
       }
-      
+
+      // Check for errors in response.data.errors
+      if (response.data?.errors && response.data.errors.length > 0) {
+        return {
+          data: undefined,
+          error: true,
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
+        };
+      }
+
+      const boards = response.data?.data?.boards || [];
+      if (boards.length === 0) {
+        return {
+          data: undefined,
+          error: true,
+          message: 'No boards found in account',
+          fullResponse: response,
+          requestInfo
+        };
+      }
+
       return {
-        data: response.data,
-        error: false
+        data: { boards },
+        error: false,
+        message: `Successfully retrieved ${boards.length} boards`,
+        fullResponse: response,
+        requestInfo
       };
+
     } catch (error: any) {
-      console.error("Error fetching board data:", error);
+      const token = await this.getToken();
+      
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'boards',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
       return {
+        data: undefined,
         error: true,
-        message: error.message || 'Unknown error',
-        errors: error.errors,
-        data: {
-          // Fallback data for demo purposes
-          me: { 
-            id: "demo", 
-            name: "Demo User", 
-            email: "demo@monday.com", 
-            account: { id: "demo", name: "Demo Account" } 
-          },
-          boards: [
-            { id: "1", name: "Demo Board 1", description: "Sample board", state: "active", board_kind: "public" },
-            { id: "2", name: "Demo Board 2", description: "Another sample", state: "active", board_kind: "public" }
-          ]
+        message: error.message || 'Network or parsing error occurred',
+        fullResponse: error,
+        requestInfo
+      };
+    }
+  }
+
+  /**
+   * Execute a custom GraphQL query
+   * @param query - The GraphQL query string
+   * @param variables - Optional variables for the query
+   * @returns Promise<ApiResponse<any>>
+   */
+  async executeCustomQuery(query: string, variables?: any): Promise<ApiResponse<any>> {
+    const timestamp = new Date().toISOString();
+
+    try {
+      const token = await this.getToken();
+      
+      const response = await this.client.request(query, variables) as any;
+      
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'custom',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
+      // Check for GraphQL errors in response
+      if (response.error || response.data?.error) {
+        return {
+          data: response.data?.data,
+          error: true,
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
+        };
+      }
+
+      // Check for errors in response.data.errors
+      if (response.data?.errors && response.data.errors.length > 0) {
+        return {
+          data: response.data?.data,
+          error: true,
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
+        };
+      }
+
+      return {
+        data: response.data?.data,
+        error: false,
+        message: 'Query executed successfully',
+        fullResponse: response,
+        requestInfo
+      };
+
+    } catch (error: any) {
+      const token = await this.getToken();
+      
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'custom',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
+      return {
+        data: undefined,
+        error: true,
+        message: error.message || 'Network or parsing error occurred',
+        fullResponse: error,
+        requestInfo
+      };
+    }
+  }
+
+  /**
+   * Get users from Monday API
+   * @param limit - Maximum number of users to fetch
+   * @returns Promise<ApiResponse<{ users: UserData[] }>>
+   */
+  async getUsers(limit: number = 10): Promise<ApiResponse<{ users: UserData[] }>> {
+    const query = `
+      query($limit: Int!) {
+        users(limit: $limit) {
+          id
+          name
+          email
+          enabled
+          created_at
+          is_admin
+          is_guest
+          photo_thumb
+          time_zone_identifier
         }
+      }
+    `;
+
+    const variables = { limit };
+    const timestamp = new Date().toISOString();
+
+    try {
+      const token = await this.getToken();
+      
+      const response = await this.client.request(query, variables) as any;
+      
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'users',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
+      // Check for GraphQL errors in response
+      if (response.error || response.data?.error) {
+        return {
+          data: { users: [] },
+          error: true,
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
+        };
+      }
+
+      // Check for errors in response.data.errors
+      if (response.data?.errors && response.data.errors.length > 0) {
+        return {
+          data: { users: [] },
+          error: true,
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
+        };
+      }
+
+      return {
+        data: { users: response.data?.data?.users || [] },
+        error: false,
+        message: 'Users retrieved successfully',
+        fullResponse: response,
+        requestInfo
+      };
+
+    } catch (error: any) {
+      const token = await this.getToken();
+      
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'users',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
+      return {
+        data: { users: [] },
+        error: true,
+        message: error.message || 'Network or parsing error occurred',
+        fullResponse: error,
+        requestInfo
       };
     }
   }
 
   /**
-   * Executes a custom GraphQL query
-   * @param query - GraphQL query string
-   * @returns Promise<ApiResponse> with query results
+   * Execute API Playground query
+   * @param query - The GraphQL query string
+   * @param variables - Optional variables for the query
+   * @returns Promise<ApiResponse<any>>
    */
-  async executeCustomQuery(query: string): Promise<ApiResponse> {
-    if (!query.trim()) {
-      return {
-        error: true,
-        message: "Please enter a GraphQL query"
-      };
-    }
+  async executeApiPlaygroundQuery(query: string, variables?: any): Promise<ApiResponse<any>> {
+    const timestamp = new Date().toISOString();
 
     try {
-      console.log("Executing custom query:", query);
-      const response = await monday.api(query);
-      console.log("Custom query response:", response);
+      const token = await this.getToken();
       
-      // Check for GraphQL errors in the response
-      if ((response as any).errors && (response as any).errors.length > 0) {
-        console.error("GraphQL errors:", (response as any).errors);
+      const response = await this.client.request(query, variables) as any;
+      
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'playground',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
+      // Check for GraphQL errors in response
+      if (response.error || response.data?.error) {
         return {
+          data: response.data?.data,
           error: true,
-          message: "GraphQL validation errors",
-          errors: (response as any).errors,
-          data: response.data
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
         };
       }
-      
-      return response;
-    } catch (error: any) {
-      console.error("Custom query error:", error);
-      return {
-        error: true,
-        message: error.message || 'Unknown error',
-        errors: error.errors
-      };
-    }
-  }
 
-  /**
-   * Fetches users data
-   * @returns Promise<ApiResponse> with users data
-   */
-  async getUsers(): Promise<ApiResponse<{ users: UserData[] }>> {
-    try {
-      const query = 'query GetUsers { users { name id email } }';
-      console.log("Executing users query:", query);
-      const response = await monday.api(query);
-      console.log("Users response:", response);
-      
-      // Check for GraphQL errors in the response
-      if ((response as any).errors && (response as any).errors.length > 0) {
-        console.error("GraphQL errors:", (response as any).errors);
+      // Check for errors in response.data.errors
+      if (response.data?.errors && response.data.errors.length > 0) {
         return {
+          data: response.data?.data,
           error: true,
-          message: "GraphQL validation errors",
-          errors: (response as any).errors,
-          data: response.data
+          message: 'GraphQL validation errors',
+          fullResponse: response,
+          requestInfo
         };
       }
-      
-      return response;
-    } catch (error: any) {
-      console.error("Error fetching users:", error);
-      return {
-        error: true,
-        message: error.message || 'Unknown error',
-        errors: error.errors
-      };
-    }
-  }
 
-  /**
-   * Executes API playground query with client/server side options
-   * @param query - GraphQL query string
-   * @param queryType - 'client' or 'server' side execution
-   * @returns Promise<ApiResponse> with query results
-   */
-  async executeApiPlaygroundQuery(query: string, queryType: 'client' | 'server'): Promise<ApiResponse> {
-    if (!query.trim()) {
       return {
-        error: true,
-        message: "Please enter a GraphQL query"
+        data: response.data?.data,
+        error: false,
+        message: 'Query executed successfully',
+        fullResponse: response,
+        requestInfo
       };
-    }
 
-    try {
-      console.log(`Executing ${queryType}-side query:`, query);
-      let response;
-      
-      if (queryType === 'client') {
-        // Client-side query with seamless auth
-        response = await monday.api(query);
-      } else {
-        // Server-side query (would typically go through backend)
-        // For demo purposes, we'll still use client-side but indicate it's server-side
-        response = await monday.api(query);
-        response = { ...response, queryType: 'server-side (demo)' };
-      }
-      
-      console.log(`${queryType}-side query response:`, response);
-      
-      // Check for GraphQL errors in the response
-      if ((response as any).errors && (response as any).errors.length > 0) {
-        console.error("GraphQL errors:", (response as any).errors);
-        return {
-          error: true,
-          message: "GraphQL validation errors",
-          errors: (response as any).errors,
-          data: response.data
-        };
-      }
-      
-      return response;
     } catch (error: any) {
-      console.error(`${queryType}-side query error:`, error);
+      const token = await this.getToken();
+      
+      const requestInfo: any = {
+        query,
+        variables,
+        method: 'POST',
+        url: 'https://api.monday.com/v2',
+        headers: {
+          'Content-Type': 'application/json',
+          'API-Version': '2025-04'
+        },
+        timestamp,
+        apiVersion: '2025-04',
+        queryType: 'playground',
+        token: token ? `${token.substring(0, 10)}...` : 'Not available'
+      };
+
       return {
+        data: undefined,
         error: true,
-        message: error.message || 'Unknown error',
-        errors: error.errors
+        message: error.message || 'Network or parsing error occurred',
+        fullResponse: error,
+        requestInfo
       };
     }
   }
 }
 
 // Export singleton instance
-export const mondayApiService = new MondayApiService(); 
+export const mondayApiService = MondayApiService.getInstance();
+export default mondayApiService; 

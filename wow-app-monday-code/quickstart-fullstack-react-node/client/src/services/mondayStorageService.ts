@@ -1,15 +1,20 @@
-import mondaySdk, { MondayClientSdk } from "monday-sdk-js";
+import { MondayClientSdk } from "monday-sdk-js";
 import { StorageData } from "../types/monday.types";
-
-// Initialize Monday SDK
-const monday: MondayClientSdk = mondaySdk();
+import { mondaySDK } from "./mondaySDK";
 
 /**
  * Monday Storage Service
  * Handles all Monday.com storage operations with proper error handling
+ * Uses centralized SDK instance to maintain authentication context
  */
 export class MondayStorageService {
   private readonly STORAGE_EXAMPLE_KEY = 'my_example_key';
+  private monday: MondayClientSdk;
+
+  constructor() {
+    // Use centralized SDK instance to maintain authentication context
+    this.monday = mondaySDK.getSDK();
+  }
 
   /**
    * Safe wrapper for storage operations
@@ -20,9 +25,15 @@ export class MondayStorageService {
   private async safeStorageCall(promise: Promise<any>, errorPrefix: string = "Storage Error"): Promise<StorageData> {
     try {
       const result = await promise;
+      console.log(`${errorPrefix} - Raw result:`, result);
+      
+      // Handle Monday SDK response structure
+      const data = result?.data || result;
+      const value = data?.value !== undefined ? data.value : data;
+      
       return {
         success: true,
-        value: result?.data?.value || result?.data || result,
+        value: value,
         error: false
       };
     } catch (error: any) {
@@ -42,8 +53,10 @@ export class MondayStorageService {
    */
   async getInstanceStorage(key?: string): Promise<StorageData> {
     const storageKey = key !== undefined ? key : this.STORAGE_EXAMPLE_KEY;
+    console.log(`Getting instance storage for key: ${storageKey}`);
+    
     return this.safeStorageCall(
-      monday.storage.instance.getItem(storageKey),
+      this.monday.storage.instance.getItem(storageKey),
       "Instance Storage Get"
     );
   }
@@ -56,8 +69,10 @@ export class MondayStorageService {
    */
   async setInstanceStorage(value: string, key?: string): Promise<StorageData> {
     const storageKey = key !== undefined ? key : this.STORAGE_EXAMPLE_KEY;
+    console.log(`Setting instance storage for key: ${storageKey}, value: ${value}`);
+    
     return this.safeStorageCall(
-      monday.storage.instance.setItem(storageKey, value),
+      this.monday.storage.instance.setItem(storageKey, value),
       "Instance Storage Set"
     );
   }
@@ -69,7 +84,7 @@ export class MondayStorageService {
    */
   async getGlobalStorage(key: string = "globalTestKey"): Promise<StorageData> {
     return this.safeStorageCall(
-      monday.storage.getItem(key),
+      this.monday.storage.getItem(key),
       "Global Storage Get"
     );
   }
@@ -82,7 +97,7 @@ export class MondayStorageService {
    */
   async setGlobalStorage(value: string, key: string = "globalTestKey"): Promise<StorageData> {
     return this.safeStorageCall(
-      monday.storage.setItem(key, value),
+      this.monday.storage.setItem(key, value),
       "Global Storage Set"
     );
   }
@@ -95,7 +110,7 @@ export class MondayStorageService {
   async getUserStorage(key: string = "userTestKey"): Promise<StorageData> {
     try {
       return this.safeStorageCall(
-        monday.storage.getItem(key),
+        this.monday.storage.getItem(key),
         "User Storage Get"
       );
     } catch (error) {
@@ -116,7 +131,7 @@ export class MondayStorageService {
   async setUserStorage(value: string, key: string = "userTestKey"): Promise<StorageData> {
     try {
       return this.safeStorageCall(
-        monday.storage.setItem(key, value),
+        this.monday.storage.setItem(key, value),
         "User Storage Set"
       );
     } catch (error) {

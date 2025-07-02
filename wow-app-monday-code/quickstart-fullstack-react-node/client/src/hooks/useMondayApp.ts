@@ -1,77 +1,68 @@
 import { useState, useEffect, useCallback } from 'react';
-import mondaySdk, { MondayClientSdk } from "monday-sdk-js";
-import { AppState, MondayContext, ApiResponse, StorageData, ExecuteResult } from '../types/monday.types';
+import { MondayClientSdk } from "monday-sdk-js";
+import { AppState, MondayContext } from '../types/monday.types';
 import { mondayApiService } from '../services/mondayApiService';
 import { mondayStorageService } from '../services/mondayStorageService';
+import { mondaySDK } from '../services/mondaySDK';
 
-// Initialize Monday SDK
-const monday: MondayClientSdk = mondaySdk();
-monday.setApiVersion("2025-04");
+// Use centralized Monday SDK instance
+const monday: MondayClientSdk = mondaySDK.getSDK();
 
 /**
  * Custom hook for managing Monday app state and operations
  * Centralizes all Monday SDK interactions and state management
+ * Uses centralized SDK instance for consistent authentication
  */
 export const useMondayApp = () => {
-  // Initialize state with proper typing
+  // Centralized state for all Monday app functionality
   const [state, setState] = useState<AppState>({
-    // Context and initialization
-    context: null,
+    // Loading states
     initLoading: true,
-    
-    // API data
-    apiData: null,
     apiLoading: false,
-    users: null,
-    
-    // Monday.get data
-    itemIds: null,
-    sessionToken: "",
-    filter: null,
-    locationData: null,
+
+    // Monday context and client info
+    context: null,
+    theme: 'light',
+    location: null,
     clientInfo: null,
-    
+
     // Storage data
-    storageExampleText: "",
     instanceStorage: null,
     globalStorage: null,
-    
-    // Query playground
-    customQuery: `query GetMyInfo { 
-  me { 
-    id 
-    name 
-    email
-  } 
-}`,
-    customQueryResult: null,
-    showCustomQuery: false,
-    apiPlaygroundQuery: `query GetMyInfoWithAccount { 
-  me { 
-    id 
-    name 
-    email
-    account {
-      id
-      name
-    }
-  } 
-}`,
-    apiPlaygroundResult: null,
-    showApiPlayground: false,
-    apiQueryType: 'client',
-    
-    // Listeners
+
+    // API data
+    apiData: null,
+    users: null,
+
+    // Single latest API response for unified display
+    latestApiResponse: null,
+
+    // Monday.get data
+    itemIds: null,
+    sessionToken: null,
+    filter: null,
+    locationData: null,
+
+    // Execute results
+    executeResults: {},
+
+    // Listener data
     contextListener: null,
     itemIdsListener: null,
     eventsListener: null,
-    
-    // Execute results
-    executeResults: {},
-    
-    // UI state
-    theme: "",
-    location: null,
+
+    // Custom query functionality
+    customQuery: '',
+    customQueryResult: null,
+    showCustomQuery: false,
+
+    // API Playground functionality
+    apiPlaygroundQuery: '',
+    apiPlaygroundResult: null,
+    showApiPlayground: false,
+
+    // Tab state
+    activeTab: 'get' as 'get' | 'storage' | 'api' | 'execute' | 'listen'
   });
 
   /**
@@ -87,6 +78,9 @@ export const useMondayApp = () => {
    */
   const initializeApp = useCallback(async () => {
     try {
+      // Initialize centralized SDK for seamless authentication
+      mondaySDK.initialize();
+      
       // Notify Monday platform that user gained first value in app
       await monday.execute("valueCreatedForUser");
 
@@ -106,11 +100,7 @@ export const useMondayApp = () => {
         updateState({ location: res.data });
       });
 
-      // Initialize storage
-      const storageResult = await mondayStorageService.getExampleStorage();
-      if (storageResult.success && storageResult.value) {
-        updateState({ storageExampleText: storageResult.value });
-      }
+      // Storage is now initialized on-demand when buttons are clicked
 
       // Initialize client info
       await initializeClientInfo();
@@ -163,7 +153,11 @@ export const useMondayApp = () => {
     updateState({ apiLoading: true });
     try {
       const result = await mondayApiService.fetchBoardData();
-      updateState({ apiData: result, apiLoading: false });
+      updateState({ 
+        apiData: result, 
+        latestApiResponse: { ...result, apiCallType: 'Board Data' },
+        apiLoading: false 
+      });
     } catch (error) {
       console.error("Error in fetchBoardData hook:", error);
       updateState({ apiLoading: false });
@@ -172,30 +166,33 @@ export const useMondayApp = () => {
 
   const executeCustomQuery = useCallback(async () => {
     const result = await mondayApiService.executeCustomQuery(state.customQuery);
-    updateState({ customQueryResult: result });
+    updateState({ 
+      customQueryResult: result,
+      latestApiResponse: { ...result, apiCallType: 'Custom Query' }
+    });
   }, [state.customQuery, updateState]);
 
   const executeApiPlayground = useCallback(async () => {
     const result = await mondayApiService.executeApiPlaygroundQuery(
-      state.apiPlaygroundQuery, 
-      state.apiQueryType
+      state.apiPlaygroundQuery
     );
-    updateState({ apiPlaygroundResult: result });
-  }, [state.apiPlaygroundQuery, state.apiQueryType, updateState]);
+    updateState({ 
+      apiPlaygroundResult: result,
+      latestApiResponse: { ...result, apiCallType: 'API Playground' }
+    });
+  }, [state.apiPlaygroundQuery, updateState]);
 
   const getUsers = useCallback(async () => {
     const result = await mondayApiService.getUsers();
-    updateState({ users: result });
+    updateState({ 
+      users: result,
+      latestApiResponse: { ...result, apiCallType: 'Users Data' }
+    });
   }, [updateState]);
 
   /**
    * Storage Operations
    */
-  const updateStorageText = useCallback(async (text: string) => {
-    updateState({ storageExampleText: text });
-    await mondayStorageService.initializeExampleStorage(text);
-  }, [updateState]);
-
   const testInstanceStorage = useCallback(async () => {
     const result = await mondayStorageService.getInstanceStorage();
     updateState({ instanceStorage: result });
@@ -221,6 +218,22 @@ export const useMondayApp = () => {
       updateState({ globalStorage: result });
     }
   }, [updateState]);
+
+  /**
+   * Tests storage authentication
+   */
+  const testStorageAuth = useCallback(async () => {
+    try {
+      const result = await mondaySDK.testStorageAuth();
+      if (result.success) {
+        alert("✅ Storage authentication test passed! Storage should work now.");
+      } else {
+        alert(`❌ Storage authentication test failed: ${result.error}`);
+      }
+    } catch (error: any) {
+      alert(`❌ Storage authentication test error: ${error.message}`);
+    }
+  }, []);
 
   /**
    * Monday.get operations
@@ -340,8 +353,13 @@ export const useMondayApp = () => {
     updateState({ apiPlaygroundQuery: query });
   }, [updateState]);
 
-  const setApiQueryType = useCallback((type: 'client' | 'server') => {
-    updateState({ apiQueryType: type });
+
+
+  /**
+   * Tab Management
+   */
+  const setActiveTab = useCallback((tab: 'get' | 'storage' | 'api' | 'execute' | 'listen' | 'local') => {
+    updateState({ activeTab: tab });
   }, [updateState]);
 
   // Initialize app on mount
@@ -360,11 +378,11 @@ export const useMondayApp = () => {
     getUsers,
     
     // Storage operations
-    updateStorageText,
     testInstanceStorage,
     setInstanceStorageValue,
     testGlobalStorage,
     setGlobalStorageValue,
+    testStorageAuth,
     
     // Monday.get operations
     getItemIds,
@@ -380,6 +398,9 @@ export const useMondayApp = () => {
     toggleApiPlayground,
     updateCustomQuery,
     updateApiPlaygroundQuery,
-    setApiQueryType,
+
+    
+    // Tab management
+    setActiveTab,
   };
 }; 

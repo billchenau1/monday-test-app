@@ -1,13 +1,14 @@
 import React from 'react';
 import { Button, Box, Heading, Text, Flex, TextArea } from "@vibe/core";
 import { ApiResponse, BoardData, MeData, UserData } from '../types/monday.types';
-import { ResponseDisplay } from './ResponseDisplay';
+import ResponseDisplay from './ResponseDisplay';
 
 interface ApiSectionProps {
   // API data
-  apiData: ApiResponse<{ me: MeData; boards: BoardData[] }> | null;
+  apiData: ApiResponse<{ boards: BoardData[] }> | null;
   apiLoading: boolean;
   users: ApiResponse<{ users: UserData[] }> | null;
+  latestApiResponse: (ApiResponse & { apiCallType?: string }) | null;
   
   // Custom query state
   customQuery: string;
@@ -18,7 +19,6 @@ interface ApiSectionProps {
   apiPlaygroundQuery: string;
   apiPlaygroundResult: ApiResponse | null;
   showApiPlayground: boolean;
-  apiQueryType: 'client' | 'server';
   
   // Event handlers
   onFetchBoardData: () => void;
@@ -29,7 +29,7 @@ interface ApiSectionProps {
   onToggleApiPlayground: () => void;
   onUpdateCustomQuery: (query: string) => void;
   onUpdateApiPlaygroundQuery: (query: string) => void;
-  onSetApiQueryType: (type: 'client' | 'server') => void;
+
 }
 
 /**
@@ -41,13 +41,14 @@ export const ApiSection: React.FC<ApiSectionProps> = ({
   apiData,
   apiLoading,
   users,
+  latestApiResponse,
   customQuery,
   customQueryResult,
   showCustomQuery,
   apiPlaygroundQuery,
   apiPlaygroundResult,
   showApiPlayground,
-  apiQueryType,
+
   onFetchBoardData,
   onGetUsers,
   onExecuteCustomQuery,
@@ -56,7 +57,7 @@ export const ApiSection: React.FC<ApiSectionProps> = ({
   onToggleApiPlayground,
   onUpdateCustomQuery,
   onUpdateApiPlaygroundQuery,
-  onSetApiQueryType,
+
 }) => {
   return (
     <Box>
@@ -128,9 +129,8 @@ export const ApiSection: React.FC<ApiSectionProps> = ({
           </Button>
           {customQueryResult && (
             <ResponseDisplay 
-              data={customQueryResult} 
+              response={customQueryResult} 
               title="Custom Query Response"
-              testId="custom-query-response"
             />
           )}
         </Box>
@@ -149,26 +149,8 @@ export const ApiSection: React.FC<ApiSectionProps> = ({
           data-testid="api-playground-section"
         >
           <Text weight="bold" style={{ marginBottom: '10px' }}>
-            🎮 API Playground - Client/Server Testing:
+            🎮 API Playground - Custom Query Testing:
           </Text>
-          <Flex gap="small" style={{ marginBottom: '10px' }}>
-            <Button 
-              size="small" 
-              kind={apiQueryType === 'client' ? 'primary' : 'secondary'}
-              onClick={() => onSetApiQueryType('client')}
-              data-testid="client-side-btn"
-            >
-              Client-side
-            </Button>
-            <Button 
-              size="small" 
-              kind={apiQueryType === 'server' ? 'primary' : 'secondary'}
-              onClick={() => onSetApiQueryType('server')}
-              data-testid="server-side-btn"
-            >
-              Server-side
-            </Button>
-          </Flex>
           <TextArea 
             value={apiPlaygroundQuery}
             onChange={onUpdateApiPlaygroundQuery}
@@ -181,79 +163,37 @@ export const ApiSection: React.FC<ApiSectionProps> = ({
             style={{ marginTop: '10px' }}
             data-testid="execute-api-playground-btn"
           >
-            Execute {apiQueryType === 'client' ? 'Client-side' : 'Server-side'} Query
+            Execute Query
           </Button>
           {apiPlaygroundResult && (
             <ResponseDisplay 
-              data={apiPlaygroundResult} 
+              response={apiPlaygroundResult} 
               title="API Playground Response"
-              testId="api-playground-response"
             />
           )}
         </Box>
       )}
 
-      {/* Main API Data Display */}
-      {apiData && (
+      {/* Single Latest API Response Display */}
+      {latestApiResponse && (
         <Box 
           style={{ 
             padding: '15px', 
             backgroundColor: '#f0f9ff', 
             borderRadius: '8px', 
-            border: '1px solid #e0f2fe' 
+            border: '1px solid #e0f2fe',
+            marginTop: '15px'
           }}
-          data-testid="main-api-data"
+          data-testid="latest-api-response"
         >
-          <Text weight="bold" color="primary">📊 API Response Data:</Text>
-          {apiData.error ? (
-            <Box style={{ marginTop: '10px' }}>
-              <Text color="danger" weight="bold">❌ Error occurred:</Text>
-              <Text size="small" color="danger">{apiData.message}</Text>
-              <ResponseDisplay 
-                data={apiData} 
-                title="Full Error Response"
-                testId="api-error-response"
-                isError={true}
-              />
-              {apiData.data?.me && (
-                <Box style={{ marginTop: '10px' }}>
-                  <Text weight="bold">📋 Fallback Demo Data:</Text>
-                  <Text>👤 Name: {apiData.data.me.name}</Text>
-                  <Text>📧 Email: {apiData.data.me.email}</Text>
-                  <Text>🏢 Account: {apiData.data.me.account?.name}</Text>
-                </Box>
-              )}
-            </Box>
-          ) : (
-            <Box data-testid="api-success-data">
-              <Text>👤 Name: {apiData.data?.me?.name}</Text>
-              <Text>📧 Email: {apiData.data?.me?.email}</Text>
-              <Text>🏢 Account: {apiData.data?.me?.account?.name}</Text>
-              <Text weight="bold" style={{ marginTop: '10px' }} color="primary">
-                📋 Your Boards ({apiData.data?.boards?.length}):
-              </Text>
-              {apiData.data?.boards?.slice(0, 3).map((board: BoardData) => (
-                <Box key={board.id} style={{ marginLeft: '10px', marginTop: '5px' }}>
-                  <Text>• <strong>{board.name}</strong></Text>
-                  <Text size="small">  ID: {board.id}</Text>
-                  <Text size="small">  Description: {board.description || 'No description'}</Text>
-                  <Text size="small">  State: {board.state}</Text>
-                  <Text size="small">  Type: {board.board_kind}</Text>
-                </Box>
-              ))}
-            </Box>
-          )}
+          <Text weight="bold" color="primary">
+            📊 Latest API Response ({latestApiResponse.apiCallType || 'Unknown'}):
+          </Text>
+          <ResponseDisplay 
+            response={latestApiResponse} 
+            title={`${latestApiResponse.apiCallType || 'API'} Response`}
+          />
         </Box>
-      )}
-
-      {/* Users Data Display */}
-      {users && (
-        <ResponseDisplay 
-          data={users} 
-          title="👥 Users Data - Raw Response"
-          testId="users-data-response"
-          containerStyle={{ marginTop: '10px' }}
-        />
       )}
     </Box>
   );

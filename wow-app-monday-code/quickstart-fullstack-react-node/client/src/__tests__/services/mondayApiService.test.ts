@@ -1,36 +1,28 @@
-import { MondayApiService } from '../../services/mondayApiService';
+import { mondayApiService } from '../../services/mondayApiService';
 
-// Mock the monday-sdk-js module
-jest.mock('monday-sdk-js', () => {
-  const mockApi = jest.fn();
-  const mockSetApiVersion = jest.fn();
+// Mock the @mondaydotcomorg/api module
+jest.mock('@mondaydotcomorg/api', () => {
+  const mockRequest = jest.fn();
   
-  // Store mocks globally for test access
-  (global as any).mockApi = mockApi;
-  (global as any).mockSetApiVersion = mockSetApiVersion;
+  // Store mock globally for test access
+  (global as any).mockRequest = mockRequest;
   
   return {
-    __esModule: true,
-    default: jest.fn(() => ({
-      api: mockApi,
-      setApiVersion: mockSetApiVersion,
+    SeamlessApiClient: jest.fn().mockImplementation(() => ({
+      request: mockRequest,
     })),
   };
 });
 
 describe('MondayApiService', () => {
-  let service: MondayApiService;
-  let mockApi: any;
+  let mockRequest: any;
 
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
     
     // Get the mock from global
-    mockApi = (global as any).mockApi;
-    
-    // Create new service instance
-    service = new MondayApiService();
+    mockRequest = (global as any).mockRequest;
   });
 
   describe('fetchBoardData', () => {
@@ -38,56 +30,105 @@ describe('MondayApiService', () => {
       // Arrange
       const mockResponse = {
         data: {
-          me: {
-            id: "123",
-            name: "Test User",
-            email: "test@example.com",
-            account: { id: "456", name: "Test Account" }
-          },
-          boards: [
-            { id: "1", name: "Test Board", description: "Test", state: "active", board_kind: "public" }
-          ]
+          data: {
+            boards: [{
+              id: "1234567890",
+              name: "Test Board",
+              description: "Test Description",
+              state: "active",
+              board_kind: "public",
+              workspace: { id: "workspace1", name: "Test Workspace" },
+              groups: [{ id: "group1", title: "Group 1", color: "#ff0000" }],
+              columns: [{ id: "col1", title: "Name", type: "text", settings_str: "{}" }],
+              items_page: {
+                cursor: "cursor123",
+                items: [{
+                  id: "item1",
+                  name: "Test Item",
+                  created_at: "2023-01-01",
+                  updated_at: "2023-01-02",
+                  state: "active",
+                  group: { id: "group1", title: "Group 1" },
+                  column_values: []
+                }]
+              }
+            }]
+          }
         }
       };
-      mockApi.mockResolvedValue(mockResponse);
+      mockRequest.mockResolvedValue(mockResponse);
 
       // Act
-      const result = await service.fetchBoardData();
+      const result = await mondayApiService.fetchBoardData();
 
       // Assert
       expect(result.error).toBe(false);
-      expect(result.data).toEqual(mockResponse.data);
-      expect(mockApi).toHaveBeenCalledWith(expect.stringContaining('query'));
+      expect(result.data).toEqual({ boards: mockResponse.data.data.boards });
+      expect(result.requestInfo).toBeDefined();
+      expect(result.requestInfo?.queryType).toBe('boards');
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.stringContaining('query {'),
+        {}
+      );
     });
 
     it('should handle API errors gracefully', async () => {
       // Arrange
       const mockError = new Error('API Error');
-      mockApi.mockRejectedValue(mockError);
+      mockRequest.mockRejectedValue(mockError);
 
       // Act
-      const result = await service.fetchBoardData();
+      const result = await mondayApiService.fetchBoardData();
 
       // Assert
       expect(result.error).toBe(true);
       expect(result.message).toBe('API Error');
-      expect(result.data).toBeDefined(); // Should have fallback data
-      expect(result.data?.me.name).toBe('Demo User');
+      expect(result.data).toBeUndefined();
+      expect(result.fullResponse).toBe(mockError);
+      expect(result.requestInfo).toBeDefined();
+      expect(result.requestInfo?.token).toBeDefined();
     });
 
-    it('should include fallback data when API fails', async () => {
+    it('should handle GraphQL validation errors', async () => {
       // Arrange
-      mockApi.mockRejectedValue(new Error('Network error'));
+      const mockResponse = {
+        data: {
+          errors: [
+            { message: "Unauthorized field or type", path: ["me"] }
+          ]
+        }
+      };
+      mockRequest.mockResolvedValue(mockResponse);
 
       // Act
-      const result = await service.fetchBoardData();
+      const result = await mondayApiService.fetchBoardData();
 
       // Assert
       expect(result.error).toBe(true);
-      expect(result.data).toBeDefined();
-      expect(result.data?.me).toBeDefined();
-      expect(result.data?.boards).toBeDefined();
-      expect(result.data?.boards.length).toBeGreaterThan(0);
+      expect(result.message).toBe('GraphQL validation errors');
+      expect(result.data).toBeUndefined();
+      expect(result.fullResponse).toBe(mockResponse);
+    });
+
+    it('should handle empty boards response', async () => {
+      // Arrange
+      const mockResponse = {
+        data: {
+          data: {
+            boards: []
+          }
+        }
+      };
+      mockRequest.mockResolvedValue(mockResponse);
+
+      // Act
+      const result = await mondayApiService.fetchBoardData();
+
+      // Assert
+      expect(result.error).toBe(true);
+      expect(result.message).toBe('No boards found in account');
+      expect(result.data).toBeUndefined();
+      expect(result.fullResponse).toBe(mockResponse);
     });
   });
 
@@ -95,50 +136,41 @@ describe('MondayApiService', () => {
     it('should execute valid custom query', async () => {
       // Arrange
       const query = 'query { me { id name } }';
-      const mockResponse = { data: { me: { id: "123", name: "Test" } } };
-      mockApi.mockResolvedValue(mockResponse);
+      const variables = { limit: 10 };
+      const mockResponse = { 
+        data: { 
+          data: { 
+            me: { id: "123", name: "Test" } 
+          } 
+        } 
+      };
+      mockRequest.mockResolvedValue(mockResponse);
 
       // Act
-      const result = await service.executeCustomQuery(query);
+      const result = await mondayApiService.executeCustomQuery(query, variables);
 
       // Assert
-      expect(result).toEqual(mockResponse);
-      expect(mockApi).toHaveBeenCalledWith(query);
-    });
-
-    it('should reject empty query', async () => {
-      // Act
-      const result = await service.executeCustomQuery('');
-
-      // Assert
-      expect(result.error).toBe(true);
-      expect(result.message).toBe('Please enter a GraphQL query');
-      expect(mockApi).not.toHaveBeenCalled();
-    });
-
-    it('should reject whitespace-only query', async () => {
-      // Act
-      const result = await service.executeCustomQuery('   ');
-
-      // Assert
-      expect(result.error).toBe(true);
-      expect(result.message).toBe('Please enter a GraphQL query');
-      expect(mockApi).not.toHaveBeenCalled();
+      expect(result.error).toBe(false);
+      expect(result.data).toEqual(mockResponse.data.data);
+      expect(result.requestInfo).toBeDefined();
+      expect(result.requestInfo?.queryType).toBe('custom');
+      expect(mockRequest).toHaveBeenCalledWith(query, variables);
     });
 
     it('should handle query execution errors', async () => {
       // Arrange
       const query = 'query { invalid }';
       const mockError = { message: 'Invalid query', errors: [{ message: 'Field not found' }] };
-      mockApi.mockRejectedValue(mockError);
+      mockRequest.mockRejectedValue(mockError);
 
       // Act
-      const result = await service.executeCustomQuery(query);
+      const result = await mondayApiService.executeCustomQuery(query);
 
       // Assert
       expect(result.error).toBe(true);
       expect(result.message).toBe('Invalid query');
-      expect(result.errors).toEqual([{ message: 'Field not found' }]);
+      expect(result.fullResponse).toBe(mockError);
+      expect(result.requestInfo).toBeDefined();
     });
   });
 
@@ -147,118 +179,123 @@ describe('MondayApiService', () => {
       // Arrange
       const mockResponse = {
         data: {
-          users: [
-            { id: "1", name: "User 1", email: "user1@test.com" },
-            { id: "2", name: "User 2", email: "user2@test.com" }
-          ]
+          data: {
+            users: [
+              { id: "1", name: "User 1", email: "user1@test.com", enabled: true },
+              { id: "2", name: "User 2", email: "user2@test.com", enabled: true }
+            ]
+          }
         }
       };
-      mockApi.mockResolvedValue(mockResponse);
+      mockRequest.mockResolvedValue(mockResponse);
 
       // Act
-      const result = await service.getUsers();
+      const result = await mondayApiService.getUsers(5);
 
       // Assert
-      expect(result).toEqual(mockResponse);
-      expect(mockApi).toHaveBeenCalledWith('query GetUsers { users { name id email } }');
+      expect(result.error).toBe(false);
+      expect(result.data).toEqual({ users: mockResponse.data.data.users });
+      expect(result.requestInfo?.queryType).toBe('users');
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.stringContaining('query($limit: Int!)'),
+        { limit: 5 }
+      );
     });
 
     it('should handle users fetch error', async () => {
       // Arrange
       const mockError = new Error('Unauthorized');
-      mockApi.mockRejectedValue(mockError);
+      mockRequest.mockRejectedValue(mockError);
 
       // Act
-      const result = await service.getUsers();
+      const result = await mondayApiService.getUsers();
 
       // Assert
       expect(result.error).toBe(true);
       expect(result.message).toBe('Unauthorized');
+      expect(result.data).toEqual({ users: [] });
     });
   });
 
   describe('executeApiPlaygroundQuery', () => {
-    const testQuery = 'query { me { id } }';
-
-    it('should execute client-side query', async () => {
+    it('should execute playground query successfully', async () => {
       // Arrange
-      const mockResponse = { data: { me: { id: "123" } } };
-      mockApi.mockResolvedValue(mockResponse);
+      const testQuery = 'query { me { id } }';
+      const mockResponse = { 
+        data: { 
+          data: { 
+            me: { id: "123" } 
+          } 
+        } 
+      };
+      mockRequest.mockResolvedValue(mockResponse);
 
       // Act
-      const result = await service.executeApiPlaygroundQuery(testQuery, 'client');
+      const result = await mondayApiService.executeApiPlaygroundQuery(testQuery);
 
       // Assert
-      expect(result).toEqual(mockResponse);
-      expect(mockApi).toHaveBeenCalledWith(testQuery);
+      expect(result.error).toBe(false);
+      expect(result.data).toEqual(mockResponse.data.data);
+      expect(result.requestInfo?.queryType).toBe('playground');
+      expect(mockRequest).toHaveBeenCalledWith(testQuery, undefined);
     });
 
-    it('should execute server-side query with demo flag', async () => {
+    it('should execute playground query with variables', async () => {
       // Arrange
-      const mockResponse = { data: { me: { id: "123" } } };
-      mockApi.mockResolvedValue(mockResponse);
+      const testQuery = 'query($limit: Int) { boards(limit: $limit) { id } }';
+      const variables = { limit: 5 };
+      const mockResponse = { 
+        data: { 
+          data: { 
+            boards: [] 
+          } 
+        } 
+      };
+      mockRequest.mockResolvedValue(mockResponse);
 
       // Act
-      const result = await service.executeApiPlaygroundQuery(testQuery, 'server');
+      const result = await mondayApiService.executeApiPlaygroundQuery(testQuery, variables);
 
       // Assert
-      expect((result as any).queryType).toBe('server-side (demo)');
-      expect(result.data).toEqual(mockResponse.data);
-      expect(mockApi).toHaveBeenCalledWith(testQuery);
-    });
-
-    it('should reject empty playground query', async () => {
-      // Act
-      const result = await service.executeApiPlaygroundQuery('', 'client');
-
-      // Assert
-      expect(result.error).toBe(true);
-      expect(result.message).toBe('Please enter a GraphQL query');
+      expect(result.error).toBe(false);
+      expect(result.data).toEqual(mockResponse.data.data);
+      expect(mockRequest).toHaveBeenCalledWith(testQuery, variables);
     });
 
     it('should handle playground query errors', async () => {
       // Arrange
-      const mockError = new Error('Playground error');
-      mockApi.mockRejectedValue(mockError);
+      const mockError = new Error('Query failed');
+      mockRequest.mockRejectedValue(mockError);
 
       // Act
-      const result = await service.executeApiPlaygroundQuery(testQuery, 'client');
+      const result = await mondayApiService.executeApiPlaygroundQuery('query { me { id } }');
 
       // Assert
       expect(result.error).toBe(true);
-      expect(result.message).toBe('Playground error');
+      expect(result.message).toBe('Query failed');
+      expect(result.data).toBeUndefined();
+      expect(result.fullResponse).toBe(mockError);
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle errors without message property', async () => {
+  describe('request info tracking', () => {
+    it('should include complete request information in all responses', async () => {
       // Arrange
-      const mockError = { code: 'UNKNOWN_ERROR' };
-      mockApi.mockRejectedValue(mockError);
+      const mockResponse = { data: { me: { id: "123" } } };
+      mockRequest.mockResolvedValue(mockResponse);
 
       // Act
-      const result = await service.executeCustomQuery('query { test }');
+      const result = await mondayApiService.executeCustomQuery('query { me { id } }');
 
       // Assert
-      expect(result.error).toBe(true);
-      expect(result.message).toBe('Unknown error');
-    });
-
-    it('should preserve error structure', async () => {
-      // Arrange
-      const mockError = {
-        message: 'GraphQL Error',
-        errors: [{ message: 'Unauthorized field', path: ['me'] }]
-      };
-      mockApi.mockRejectedValue(mockError);
-
-      // Act
-      const result = await service.executeCustomQuery('query { me { secret } }');
-
-      // Assert
-      expect(result.error).toBe(true);
-      expect(result.message).toBe('GraphQL Error');
-      expect(result.errors).toEqual(mockError.errors);
+      expect(result.requestInfo).toBeDefined();
+      expect(result.requestInfo?.method).toBe('POST');
+      expect(result.requestInfo?.url).toBe('https://api.monday.com/v2');
+      expect(result.requestInfo?.apiVersion).toBe('2025-04');
+      expect(result.requestInfo?.timestamp).toBeDefined();
+      expect(result.requestInfo?.headers).toBeDefined();
+      expect(result.requestInfo?.query).toBe('query { me { id } }');
+      expect(result.requestInfo?.token).toBeDefined();
     });
   });
 });
